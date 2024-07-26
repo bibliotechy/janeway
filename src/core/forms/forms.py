@@ -139,7 +139,7 @@ class RegistrationForm(forms.ModelForm, CaptchaForm):
     class Meta:
         model = models.Account
         fields = ('email', 'salutation', 'first_name', 'middle_name',
-                  'last_name', 'department', 'institution', 'country',)
+                  'last_name',)
 
     def __init__(self, *args, **kwargs):
         self.journal = kwargs.pop('journal', None)
@@ -487,7 +487,7 @@ class SectionForm(JanewayTranslationModelForm):
 class QuickUserForm(forms.ModelForm):
     class Meta:
         model = models.Account
-        fields = ('email', 'salutation', 'first_name', 'last_name', 'institution',)
+        fields = ('email', 'salutation', 'first_name', 'last_name',)
 
 
 class LoginForm(CaptchaForm):
