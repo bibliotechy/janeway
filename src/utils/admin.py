@@ -3,6 +3,8 @@ __author__ = "Martin Paul Eve & Andy Byers"
 __license__ = "AGPL v3"
 __maintainer__ = "Birkbeck Centre for Technology and Publishing"
 
+import json
+
 from django.contrib import admin
 
 from utils import admin_utils
@@ -53,11 +55,34 @@ class VersionAdmin(admin.ModelAdmin):
     date_hierarchy = ('date')
 
 
+class RORImportAdmin(admin.ModelAdmin):
+    list_display = ('pk', 'status', 'started', 'stopped')
+    list_filter = ('status', 'started', 'stopped')
+    search_fields = ('rorimporterror__message', 'records',)
+    date_hierarchy = ('started')
+    readonly_fields = ('started', 'stopped', 'status', 'records')
+    inlines = [
+        admin_utils.RORImportErrorInline,
+    ]
+
+
+class RORImportErrorAdmin(admin.ModelAdmin):
+    list_display = ('pk', '_first_line')
+    search_fields = ('message',)
+    date_hierarchy = ('ror_import__started')
+    raw_id_fields = ('ror_import', )
+
+    def _first_line(self, obj):
+        return obj.message.split('\n')[0] if obj and obj.message else ''
+
+
 admin_list = [
     (models.LogEntry, LogAdmin),
     (models.Plugin, PluginAdmin),
     (models.ImportCacheEntry, ImportCacheAdmin),
-    (models.Version, VersionAdmin)
+    (models.Version, VersionAdmin),
+    (models.RORImport, RORImportAdmin),
+    (models.RORImportError, RORImportErrorAdmin),
 ]
 
 [admin.site.register(*t) for t in admin_list]

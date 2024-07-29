@@ -12,6 +12,8 @@ from datetime import timedelta
 import pytz
 from hijack.signals import hijack_started, hijack_ended
 import warnings
+import tqdm
+import zipfile
 
 from bs4 import BeautifulSoup
 from django.conf import settings
@@ -49,6 +51,7 @@ from core.model_utils import (
 from review import models as review_models
 from copyediting import models as copyediting_models
 from repository import models as repository_models
+from utils.models import RORImportError
 from submission import models as submission_models
 from utils.logger import get_logger
 from utils import logic as utils_logic
@@ -2039,6 +2042,61 @@ class Organization(models.Model):
 
         return organization, created
 
+    @classmethod
+    def create_from_ror_record(cls, record):
+        organization, created = cls.objects.get_or_create(
+            ror=record.get('id', ''),
+        )
+        if record.get('status'):
+            organization.ror_status = record.get('status')
+        organization.save()
+        for name in record.get('names'):
+            kwargs = {}
+            kwargs['value'] = name.get('value', '')
+            if name.get('lang'):
+                kwargs['language'] = name.get('language', '')
+            if 'ror_display' in name.get('types'):
+                kwargs['ror_display_for'] = organization
+            if 'label' in name.get('types'):
+                kwargs['label_for'] = organization
+            if 'alias' in name.get('types'):
+                kwargs['alias_for'] = organization
+            if 'acronym' in name.get('types'):
+                kwargs['acronym_for'] = organization
+            OrganizationName.objects.get_or_create(**kwargs)
+        for location in record.get('locations'):
+            details = location.get('geonames_details', {})
+            country, created = Country.objects.get_or_create(
+                code=details.get('country_code', ''),
+            )
+            location, created = Location.objects.get_or_create(
+                name=details.get('name', ''),
+                country=country,
+                latitude=details.get('lat'),
+                longitude=details.get('lng'),
+                geonames_id=location.get('geonames_id'),
+            )
+            organization.locations.add(location)
+
+
+    @classmethod
+    def import_ror_batch(cls, ror_import):
+        with zipfile.ZipFile(ror_import.zip_path, mode='r') as zip_ref:
+            for file_info in zip_ref.infolist():
+                if file_info.filename.endswith('v2.json'):
+                    json_string = zip_ref.read(file_info).decode(encoding="utf-8")
+                    data = json.loads(json_string)
+                    if settings.DEBUG:
+                        data = data[:1000]
+                    for item in tqdm.tqdm(data):
+                        try:
+                            cls.create_from_ror_record(item)
+                        except Exception as error:
+                            message = f'{error}\n{json.dumps(item)}'
+                            RORImportError.objects.create(
+                                ror_import=ror_import,
+                                message=message,
+                            )
 
 class Affiliation(models.Model):
     account = models.ForeignKey(
