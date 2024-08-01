@@ -63,16 +63,16 @@
                                 <td><i class="fa fa-sort"></i></td>
                                 <td style="vertical-align: top;">
                                   <div class="flex">
-                                    <div class="flex direction-column gap-05">
+                                    <div class="flex direction-column gap-0-5">
                                       <div>{{ order.author.full_name }}</div>
                                       <div>{{ order.author.email }}</div>
                                     </div>
                                   </div>
                                 </td>
                                 <td>
-                                  <div class="flex direction-column gap-05">
+                                  <div class="flex direction-column gap-0-5">
                                     {% for affiliation in order.author.affiliations %}
-                                      <div class="flex gap-05">
+                                      <div class="flex gap-0-5">
                                         {{ affiliation }}
                                         {% url 'affiliation_update' article.pk order.author.pk affiliation.pk as update_url %}
                                         {% include "elements/a_edit.html" with href=update_url size="tiny" %}

@@ -888,14 +888,3 @@ ul.menu {
     margin-bottom: 0.5rem;
   }
 }
-
-.flex {
-  display: flex;
-  &.wrap { flex-wrap: wrap; }
-  &.direction-column { flex-direction: column; }
-  &.space-between {
-    justify-content: space-between;
-  }
-  &.gap-05 { gap: 0.5rem; }
-  &.gap-1 { gap: 1rem; }
-}

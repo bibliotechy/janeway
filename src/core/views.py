@@ -520,7 +520,7 @@ def edit_profile(request):
         elif 'export' in request.POST:
             return logic.export_gdpr_user_profile(user)
 
-    template = 'core/accounts/edit_profile.html'
+    template = 'admin/core/edit_profile.html'
     context = {
         'form': form,
         'staff_group_membership_form': staff_group_membership_form,
