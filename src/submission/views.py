@@ -6,16 +6,21 @@ __maintainer__ = "Birkbeck Centre for Technology and Publishing"
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone, translation
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
+from django.views.generic import UpdateView
+from django.views.generic.base import ContextMixin
+from django.views.generic.edit import CreateView, DeleteView
 
-from core import files, models as core_models
+from core import files, models as core_models, forms as core_forms
+from core.views import GenericFacetedListView
 from repository import models as preprint_models
 from security.decorators import (
     article_edit_user_required,
@@ -30,6 +35,7 @@ from events import logic as event_logic
 from utils import setting_handler
 from utils import shared as utils_shared
 from utils.decorators import GET_language_override
+from utils.forms import HTMLDateInput
 from utils.shared import create_language_override_redirect
 
 
@@ -371,6 +377,207 @@ def submit_authors(request, article_id):
     }
 
     return render(request, template, context)
+
+
+class AffiliationContextMixin(ContextMixin):
+    pass
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(decorators.submission_is_enabled, name='dispatch')
+@method_decorator(article_is_not_submitted, name='dispatch')
+@method_decorator(article_edit_user_required, name='dispatch')
+@method_decorator(submission_authorised, name='dispatch')
+class OrganizationListView(GenericFacetedListView):
+    model = core_models.Organization
+    template_name = 'admin/submission/organization_search.html'
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        article_id = self.kwargs.get('article_id')
+        context['article'] = models.Article.objects.get(pk=article_id)
+        author_id = self.kwargs.get('author_id')
+        context['account'] = core_models.Account.objects.get(pk=author_id)
+        return context
+
+    def get_queryset(self, *args, **kwargs):
+        queryset = super().get_queryset(*args, **kwargs)
+        return queryset.exclude(custom_label__isnull=False)
+
+    def get_facets(self):
+        return {
+            'q': {
+                'type': 'search',
+                'field_label': 'Search for organization',
+            },
+        }
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(decorators.submission_is_enabled, name='dispatch')
+@method_decorator(article_is_not_submitted, name='dispatch')
+@method_decorator(article_edit_user_required, name='dispatch')
+@method_decorator(submission_authorised, name='dispatch')
+class OrganizationNameCreateView(CreateView):
+    model = core_models.OrganizationName
+    fields = ['value']
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        article_id = self.kwargs.get('article_id')
+        context['article'] = models.Article.objects.get(pk=article_id)
+        author_id = self.kwargs.get('author_id')
+        context['account'] = core_models.Account.objects.get(pk=author_id)
+        return context
+
+    def form_valid(self, form):
+        organization_name = form.save()
+        organization = core_models.Organization.objects.create()
+        organization_name.custom_label_for = organization
+        organization_name.save()
+        return redirect(
+            reverse(
+                'affiliation_create',
+                kwargs={
+                    'article_id': self.kwargs.get('article_id'),
+                    'author_id': self.kwargs.get('author_id'),
+                    'organization_id': organization.pk,
+                }
+            )
+        )
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(decorators.submission_is_enabled, name='dispatch')
+@method_decorator(article_is_not_submitted, name='dispatch')
+@method_decorator(article_edit_user_required, name='dispatch')
+@method_decorator(submission_authorised, name='dispatch')
+class OrganizationNameUpdateView(UpdateView):
+    model = core_models.OrganizationName
+    fields = ['value']
+    pk_url_kwarg = 'organization_name_id'
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        article_id = self.kwargs.get('article_id')
+        context['article'] = models.Article.objects.get(pk=article_id)
+        author_id = self.kwargs.get('author_id')
+        context['account'] = core_models.Account.objects.get(pk=author_id)
+        organization_name_id = self.kwargs.get('organization_name_id')
+        context['organization_name_id'] = core_models.OrganizationName.objects.get(
+            pk=organization_name_id,
+        )
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            'submit_authors',
+            kwargs={'article_id': self.kwargs.get('article_id')}
+        )
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(decorators.submission_is_enabled, name='dispatch')
+@method_decorator(article_is_not_submitted, name='dispatch')
+@method_decorator(article_edit_user_required, name='dispatch')
+@method_decorator(submission_authorised, name='dispatch')
+class AffiliationCreateView(CreateView):
+    model = core_models.Affiliation
+    form_class = core_forms.AffiliationForm
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        article_id = self.kwargs.get('article_id')
+        context['article'] = models.Article.objects.get(pk=article_id)
+        author_id = self.kwargs.get('author_id')
+        context['account'] = core_models.Account.objects.get(pk=author_id)
+        organization_id = self.kwargs.get('organization_id')
+        context['organization'] = core_models.Organization.objects.get(
+            pk=organization_id
+        )
+        return context
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['account'] = self.kwargs.get('author_id')
+        initial['organization'] = self.kwargs.get('organization_id')
+        return initial
+
+    def form_valid(self, form):
+        form.save()
+        return redirect(
+            reverse(
+                'submit_authors',
+                kwargs={'article_id': self.kwargs.get('article_id')}
+            )
+        )
+
+
+@login_required
+@decorators.submission_is_enabled
+@article_is_not_submitted
+@article_edit_user_required
+@submission_authorised
+def edit_affiliation(request, article_id):
+    pass
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(decorators.submission_is_enabled, name='dispatch')
+@method_decorator(article_is_not_submitted, name='dispatch')
+@method_decorator(article_edit_user_required, name='dispatch')
+@method_decorator(submission_authorised, name='dispatch')
+class AffiliationUpdateView(UpdateView):
+    model = core_models.Affiliation
+    pk_url_kwarg = 'affiliation_id'
+    form_class = core_forms.AffiliationForm
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        article_id = self.kwargs.get('article_id')
+        context['article'] = models.Article.objects.get(pk=article_id)
+        author_id = self.kwargs.get('author_id')
+        context['account'] = core_models.Account.objects.get(pk=author_id)
+        affiliation_id = self.kwargs.get('affiliation_id')
+        context['affiliation'] = core_models.Affiliation.objects.get(
+            pk=affiliation_id
+        )
+        context['organization'] = context['affiliation'].organization
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            'submit_authors',
+            kwargs={'article_id': self.kwargs.get('article_id')}
+        )
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(decorators.submission_is_enabled, name='dispatch')
+@method_decorator(article_is_not_submitted, name='dispatch')
+@method_decorator(article_edit_user_required, name='dispatch')
+@method_decorator(submission_authorised, name='dispatch')
+class AffiliationDeleteView(DeleteView):
+    model = core_models.Affiliation
+    pk_url_kwarg = 'affiliation_id'
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        article_id = self.kwargs.get('article_id')
+        context['article'] = models.Article.objects.get(pk=article_id)
+        author_id = self.kwargs.get('author_id')
+        context['account'] = core_models.Account.objects.get(pk=author_id)
+        affiliation_id = self.kwargs.get('affiliation_id')
+        context['affiliation'] = core_models.Affiliation.objects.get(
+            pk=affiliation_id
+        )
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            'submit_authors',
+            kwargs={'article_id': self.kwargs.get('article_id')}
+        )
 
 
 @login_required

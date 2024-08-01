@@ -1,6 +1,7 @@
 from core.forms.forms import (
     AccessRequestForm,
     AdminUserForm,
+    AffiliationForm,
     ArticleMetaImageForm,
     CBVFacetForm,
     ConfirmableForm,

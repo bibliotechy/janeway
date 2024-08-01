@@ -1,0 +1,40 @@
+{% extends "admin/submission/submit_authors_base.html" %}
+{% load foundation %}
+
+{% block manage_authors %}
+  {% include "admin/core/affiliation_info.html" %}
+  <div class="large-8 columns">
+    <div class="title-area">
+      <h2>
+        {% trans "Affiliation details for" %}
+        {% if affiliation %}
+          {{ affiliation.organization.name }}
+        {% else %}
+          {{ organization.name }}
+        {% endif %}
+      </h2>
+    </div>
+    <div class="columns">
+      {% if organization.custom_label %}
+        <div class="flex gap-1">
+          {% include "admin/elements/layout/key_value_above.html" with key="Custom organization" value=organization.custom_label %}
+          <div>
+            {% url 'organization_name_update' article.pk account.pk affiliation.organization.custom_label.pk as edit_url %}
+            {% include "elements/a_edit.html" with href=edit_url size="small" %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      {{ form|foundation }}
+      {% include "elements/button_save.html" %}
+      {% if affiliation %}
+        {% url 'affiliation_delete' article.pk account.pk affiliation.pk as delete_url %}
+        {% include "elements/a_delete.html" with href=delete_url %}
+      {% endif %}
+      {% url 'submit_authors' article.pk as cancel_url %}
+      {% include "elements/a_cancel.html" with href=cancel_url %}
+    </form>
+  </div>
+{% endblock manage_authors %}
